@@ -1,0 +1,107 @@
+---
+title: "NOAA Storm Database Severe Weather Events Analysis"
+author: "Ryan Rush"
+date: "April 29, 2017"
+output:
+    html_document:
+        keep_md: true
+---
+
+# Synopsis
+The goal of this analysis is to explore the NOAA Storm Database to answer questions relating to severe weather events.  We are interested in answering the questions: 1) Across the United States, which types of events are most harmful with respect to population health? and 2) Across the United States, which types of events have the greatest economic consequences?
+
+# Setup
+This analysis requires the dplyr, lubridate and ggplot2 libraries:
+```{r setup}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(ggplot2))
+```
+
+For purposes of clarity, we'll print information on the current environment.
+```{r environment}
+sessionInfo()
+```
+
+# Data Processing
+The data for this analysis comes from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+## Obtaining the data
+We obtained the database from the <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2">Reproducible Research Course site</a>, downloaded as a bz2 compressed file.
+```{r getdata,cache=TRUE}
+
+# Check if data directory exists; create it if not
+dataDirectory <- "./data"
+if (!file.exists(dataDirectory)) dir.create(dataDirectory)
+
+# download source file
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+dataFile <- paste(dataDirectory, "storm_data.bz2", sep='/')
+download.file(fileUrl, destfile = dataFile)
+
+```
+
+## Reading in the data
+We start by reading in the database.  We'll read it in straight from the compressed file.
+```{r readdata,cache=TRUE}
+stormDataRaw <- read.table(dataFile,sep=",", header=TRUE)
+```
+
+Now that the data is read in, we'll take a glimpse at the dataset and look at the first few variables (there are 37) of the first few rows (there are 902,297 total) and  in the dataset.
+```{r glimpsedataset}
+glimpse(stormDataRaw)
+```
+
+```{r headdataset}
+head(stormDataRaw[,1:10])
+```
+
+## Subset Dataset to what is needed for analysis
+
+Since the dataset is large, we'll want to subset the data for processing to only that which we need.  First, there are only a few of the variables we need for analysis, so we'll create a copy of the dataset with just the needed variables.
+```{r subset1}
+workingData <- stormDataRaw %>% select(EVTYPE, BGN_DATE, FATALITIES, INJURIES, PROPDMGEXP, CROPDMGEXP)
+glimpse(workingData)
+```
+
+Since we want to analyze impact by type of event, we should exclude data prior to 1996 since not all event types were tracked before that.
+```{r subset2}
+# First convert the beginning date to POSIXct datetype to more easily filter with
+workingData$BGN_DATE <- as.POSIXct(workingData$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
+# Then subset the data to just those after 1/1/1996
+workingData <- workingData %>% filter(BGN_DATE >= "1996-01-01")
+dim(workingData)
+summary(workingData$BGN_DATE)
+```
+
+
+## Tidying the Data for processing
+
+Since we'll be relying heavily on the Event Type values (EVTYPE), we need to make sure we understand their values and that they are standard.  There are 48 official event types, but looking at the unique number of values in the dataset we see there are 516.
+```{r evtype}
+length(unique(stormDataRaw$EVTYPE))
+```
+
+This is most likely due to mis-spellings of the official event types when the data was entered.  We can get a sense of that by getting the number unique event types after converting them all to upper case and removing leading and trailing spaces, which gives us 430.
+```{r evtyp2}
+length(unique(toupper(trim(workingData$EVTYPE))))
+```
+
+So, we need to normalize the various event types to the standard types so we can get accurate analysis.  We first need to get the official event type names, which we'll do just by hard-coding them into a vector. (The list was pulled from the <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf">Storm Data Documentation</a> sheet)
+```{r officialeventtypes}
+officialEventTypes <- c('Astronomical Low Tide','Avalanche','Blizzard','Coastal Flood',
+                        'Cold/Wind Chill','Debris Flow','Dense Fog','Dense Smoke','Drought',
+                        'Dust Devil','Dust Storm','Excessive Heat','Extreme Cold/Wind Chill',
+                        'Flash Flood','Flood','Frost/Freeze','Funnel Cloud',
+                        'Freezing Fog','Hail','Heat','Heavy Rain','Heavy Snow','High Surf',
+                        'High Wind','Hurricane (Typhoon)','Ice Storm','Lake-Effect Snow',
+                        'Lakeshore Flood','Lightning','Marine Hail','Marine High Wind',
+                        'Marine Strong Wind','Marine Thunderstorm Wind','Rip Current',
+                        'Seiche','Sleet','Storm Surge/Tide','Strong Wind','Thunderstorm Wind',
+                        'Tornado','Tropical Depression','Tropical Storm','Tsunami',
+                        'Volcanic Ash','Waterspout','Wildfire','Winter Storm','Winter Weather'
+                        )
+length(officialEventTypes)
+```
+
+
