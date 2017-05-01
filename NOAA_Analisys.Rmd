@@ -11,10 +11,9 @@ output:
 The goal of this analysis is to explore the NOAA Storm Database to answer questions relating to severe weather events.  We are interested in answering the questions: 1) Across the United States, which types of events are most harmful with respect to population health? and 2) Across the United States, which types of events have the greatest economic consequences?
 
 # Setup
-This analysis requires the dplyr, lubridate, stringdist and ggplot2 libraries:
+This analysis requires the dplyr, stringdist and ggplot2 libraries:
 ```{r setup}
 suppressPackageStartupMessages(library(dplyr))
-suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(stringdist))
 suppressPackageStartupMessages(library(ggplot2))
 ```
@@ -27,7 +26,7 @@ sessionInfo()
 # Data Processing
 The data for this analysis comes from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
 
-## Obtaining the data
+### Obtaining the data
 We obtained the database from the <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2">Reproducible Research Course site</a>, downloaded as a bz2 compressed file.
 ```{r getdata,cache=TRUE}
 
@@ -42,7 +41,7 @@ download.file(fileUrl, destfile = dataFile)
 
 ```
 
-## Reading in the data
+### Reading in the data
 We start by reading in the database.  We'll read it in straight from the compressed file.
 ```{r readdata,cache=TRUE}
 stormDataRaw <- read.table(dataFile,sep=",", header=TRUE)
@@ -57,17 +56,17 @@ glimpse(stormDataRaw)
 head(stormDataRaw[,1:10])
 ```
 
-## Subset Dataset to what is needed for analysis
+### Subset Dataset to what is needed for analysis
 
 Since the dataset is large, we'll want to subset the data for processing to only that which we need.  First, there are only a few of the variables we need for analysis, so we'll create a copy of the dataset with just the needed variables.
 ```{r subset1}
-workingData <- stormDataRaw %>% select(EVTYPE, BGN_DATE, FATALITIES, INJURIES, PROPDMGEXP, CROPDMGEXP)
+workingData <- stormDataRaw %>% select(EVTYPE, BGN_DATE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)
 glimpse(workingData)
 ```
 
 We know we want to measure the financial and health impacts, so we can subset the dataset to only those records which have impact on the financial or health variables.
 ```{r subset2}
-workingData <- workingData[(workingData$PROPDMGEXP != 0 & workingData$CROPDMGEXP != 0) | (workingData$FATALITIES != 0 & workingData$INJURIES != 0),]
+workingData <- workingData[(workingData$PROPDMG != 0 & workingData$CROPDMG != 0) | (workingData$FATALITIES != 0 & workingData$INJURIES != 0),]
 dim(workingData)
 ```
 
@@ -81,9 +80,9 @@ dim(workingData)
 summary(workingData$BGN_DATE)
 ```
 
-## Tidying the Data for processing
+### Tidying the Data for processing
 
-Since we'll be relying heavily on the Event Type values (EVTYPE), we need to make sure we understand their values and that they are standard.  There are 48 official event types, but looking at the unique number of values in the dataset we see there are 516.
+Since we'll be relying heavily on the Event Type values (EVTYPE), we need to make sure we understand their values and that they are standard.  There are 48 official event types, but looking at the unique number of values in the dataset we see there are 76
 
 First, let's reset the factor levels since we've subsetted the dataset
 ```{r evtype1}
@@ -91,16 +90,16 @@ workingData$EVTYPE <- factor(workingData$EVTYPE)
 str(workingData$EVTYPE)
 ```
 
-This is most likely due to mis-spellings of the official event types when the data was entered.  We can get a sense of that by getting the number unique event types after converting them all to upper case and removing leading and trailing spaces, which gives us 430.
+This is most likely due to mis-spellings of the official event types when the data was entered.  We can get a sense of that by getting the number unique event types after converting them all to upper case and removing leading and trailing spaces, which gives us 74.
 ```{r evtyp2}
 workingData$EVTYPE <- factor(toupper(trimws(workingData$EVTYPE)))
 str(workingData$EVTYPE)
 ```
 
-Another way to to isolate the event types is by getting rid of those which are statistically insignificant.  If we look at event types where there are at least 20 entries, we see there are only 94.
+Another way to to isolate the event types is by getting rid of those which are statistically insignificant.  If we look at event types where there are at least 2 entries, we see there are only 51.
 ```{r evtyp3}
 tabledEventTypes <- table(workingData$EVTYPE)
-evtypKeepers <- names(tabledEventTypes[tabledEventTypes >= 20])
+evtypKeepers <- names(tabledEventTypes[tabledEventTypes >= 2])
 length(evtypKeepers)
 ```
 
@@ -111,7 +110,7 @@ workingData$EVTYPE <- factor(workingData$EVTYPE)
 str(workingData$EVTYPE)
 ```
 
-So, we need to normalize the various event types to the standard types so we can get accurate analysis.  We first need to get the official event type names, which we'll do just by hard-coding them into a vector. (The list was pulled from the <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf">Storm Data Documentation</a> sheet)
+Now, we need to normalize the various event types to the standard types so we can get accurate analysis.  We first need to get the official event type names, which we'll do just by hard-coding them into a vector. (The list was pulled from the <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf">Storm Data Documentation</a> sheet)
 ```{r officialeventtypes}
 officialEventTypes <- c('Astronomical Low Tide','Avalanche','Blizzard','Coastal Flood',
                         'Cold/Wind Chill','Debris Flow','Dense Fog','Dense Smoke','Drought',
@@ -128,5 +127,121 @@ officialEventTypes <- c('Astronomical Low Tide','Avalanche','Blizzard','Coastal 
 officialEventTypes <- toupper(officialEventTypes)
 length(officialEventTypes)
 ```
+
+We first use distince matching to match the majority of event types to the official descriptions.  We used a maximum distance of 3 which gave the best results.
+```{r evtypmatch1}
+combinedEventTypes <- as.data.frame(evtypKeepers) %>%
+    rename(EVTYPE = evtypKeepers) %>%
+    mutate(officialEVTYPE = officialEventTypes[amatch(evtypKeepers, officialEventTypes, maxDist=3)])
+table(IsMatched=!is.na(combinedEventTypes$officialEVTYPE))
+```
+
+Now there are only 40 unmapped event types.  We will need to handle these manually.
+```{r evtypmatch2}
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('LANDSLIDE'), ]$officialEVTYPE <- 'AVALANCHE'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('DRY MICROBURST'), ]$officialEVTYPE <- 'DUST DEVIL'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('EXTREME COLD'), ]$officialEVTYPE <- 'EXTREME COLD/WIND CHILL'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('RIVER FLOOD','RIVER FLOODING','URBAN/SML STREAM FLD'), ]$officialEVTYPE <- 'FLOOD'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('FREEZING RAIN','FREEZING DRIZZLE'), ]$officialEVTYPE <- 'FREEZING FOG'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('HEAVY SURF/HIGH SURF'), ]$officialEVTYPE <- 'HIGH SURF'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('WIND'), ]$officialEVTYPE <- 'HIGH WIND'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('HURRICANE','TYPHOON'), ]$officialEVTYPE <- 'HURRICANE (TYPHOON)'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('ICY ROADS'), ]$officialEVTYPE <- 'ICE STORM'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('STORM SURGE','TIDAL FLOODING'), ]$officialEVTYPE <- 'STORM SURGE/TIDE'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('GUSTY WIND','GUSTY WINDS'), ]$officialEVTYPE <- 'STRONG WIND'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('TSTM WIND','TSTM WIND (G45)','TSTM WIND/HAIL'), ]$officialEVTYPE <- 'THUNDERSTORM WIND'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('WILD/FOREST FIRE'), ]$officialEVTYPE <- 'WILDFIRE'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('MIXED PRECIPITATION','WINTER WEATHER/MIX','WINTRY MIX'), ]$officialEVTYPE <- 'WINTER WEATHER'
+combinedEventTypes[combinedEventTypes$EVTYPE %in% c('FOG'), ]$officialEVTYPE <- 'DENSE FOG'
+
+table(IsMatched=!is.na(combinedEventTypes$officialEVTYPE))
+```
+
+Now that we have the event types mapped to the official event types, we'll update the working dataset with the official types.
+```{r evtypmap}
+workingData <- workingData %>%
+    left_join(combinedEventTypes) %>%
+    mutate(EVTYPE2 = ifelse(is.na(officialEVTYPE),EVTYPE,officialEVTYPE)) %>%
+    select(-EVTYPE,-officialEVTYPE) %>%
+    rename(EVTYPE = EVTYPE2)
+workingData$EVTYPE <- factor(workingData$EVTYPE)
+str(workingData$EVTYPE)
+```
+
+
+# Results
+
+Now that we have a tidy dataset, we can begin to answer our analysis questions.
+
+### Which types of events are most harmful to population health
+We first want to look at which type of events are the most harmful to a population's health.  The Fatalities and Injuries variables are good indicators of the effect an event has had on population health, so we'll create a dataset which contains only observations that have values in either of those variables and contains the sum of the two variables.
+```{r pophealthdata}
+popHealthData <- workingData %>%
+    filter(FATALITIES + INJURIES != 0) %>%
+    select(EVTYPE, FATALITIES, INJURIES) %>%
+ #   transmute(TOTEFFECT = FATALITIES + INJURIES) %>%
+    group_by(EVTYPE) %>%
+    summarise(TOTEFFECT = sum(FATALITIES + INJURIES))
+popHealthData$EVTYPE <- factor(popHealthData$EVTYPE)
+glimpse(popHealthData)
+```
+
+Now that we have the population health dataset, we'll plot it showing the top 10 event types by total effect.
+
+```{r pophealthplot,fig.width=8,fig.height=5}
+ggplot(top_n(popHealthData,10,TOTEFFECT),
+       aes(x=reorder(EVTYPE,TOTEFFECT,sum),y=TOTEFFECT)) +
+    geom_col() +
+    coord_flip() +
+    labs(x="Event Type",
+         y="Total Population Health Effect",
+         title="Top Event Types on Population Health"
+    )
+```
+
+We see that Tornadoes by far have the most effect on population health, followed by Floods and Excessing Heat.  It trails off after that.
+
+### Which types of events have the greatest economic consequences
+Next we'll look at which type of events are the most harmful to economic resources.  The PROPDMG (Property Damage) and CROPDMG (Crop Damage) variables are good indicators of the effect an event has had on economic resources.  These values are stored with an associated exponential value, so we'll first create a dataset which holds the calculated damage values taking into account the exponent value.
+```{r econhealthdata}
+econHealthData <- workingData %>%
+    filter(PROPDMG + CROPDMG != 0) %>%
+    select(EVTYPE, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)
+econHealthData$PROPDMG <- case_when(
+                        econHealthData$PROPDMGEXP == "K" ~ econHealthData$PROPDMG * 1000,
+                        econHealthData$PROPDMGEXP == "M" ~ econHealthData$PROPDMG * 1000000,
+                        econHealthData$PROPDMGEXP == "B" ~ econHealthData$PROPDMG * 1000000000,
+                        TRUE ~ econHealthData$PROPDMG
+                    )
+econHealthData$CROPDMG <- case_when(
+                        econHealthData$CROPDMGEXP == "K" ~ econHealthData$CROPDMG * 1000,
+                        econHealthData$CROPDMGEXP == "M" ~ econHealthData$CROPDMG * 1000000,
+                        econHealthData$CROPDMGEXP == "B" ~ econHealthData$CROPDMG * 1000000000,
+                        TRUE ~ econHealthData$CROPDMG
+                    )
+econHealthData <- econHealthData %>%
+    group_by(EVTYPE) %>%
+    summarise(TOTEFFECT = sum(PROPDMG + CROPDMG))
+econHealthData$EVTYPE <- factor(econHealthData$EVTYPE)
+glimpse(econHealthData)
+```
+
+
+Now that we have the population health dataset, we'll plot it showing the top 10 event types by total effect.
+
+```{r econhealthplot,fig.width=8,fig.height=5}
+ggplot(top_n(econHealthData,10,TOTEFFECT),
+       aes(x=reorder(EVTYPE,TOTEFFECT,sum),y=TOTEFFECT)) +
+    geom_col() +
+    coord_flip() +
+    labs(x="Event Type",
+         y="Total Economic Effect",
+         title="Top Event Types on Economy"
+    )
+```
+
+
+We see that Floods by far have the most effect on the economy, followed by Hurricanes (Typhoons) and Tornadoes.  It trails off after that.
+
 
 
