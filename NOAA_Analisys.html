@@ -126,13 +126,16 @@ $(document).ready(function () {
 
 <div id="synopsis" class="section level1">
 <h1>Synopsis</h1>
-<p>The goal of this analysis is to explore the NOAA Storm Database to answer questions relating to severe weather events.</p>
+<p>The goal of this analysis is to explore the NOAA Storm Database to answer questions relating to severe weather events. We are interested in answering the questions: 1) Across the United States, which types of events are most harmful with respect to population health? and 2) Across the United States, which types of events have the greatest economic consequences?</p>
 </div>
 <div id="setup" class="section level1">
 <h1>Setup</h1>
-<p>This analysis requires the dplyr and ggplot2 libraries:</p>
+<p>This analysis requires the dplyr, lubridate, stringdist and ggplot2 libraries:</p>
 <pre class="r"><code>suppressPackageStartupMessages(library(dplyr))
-suppressPackageStartupMessages(library(ggplot2))</code></pre>
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(stringdist))</code></pre>
+<pre><code>## Warning: package 'stringdist' was built under R version 3.3.3</code></pre>
+<pre class="r"><code>suppressPackageStartupMessages(library(ggplot2))</code></pre>
 <p>For purposes of clarity, we’ll print information on the current environment.</p>
 <pre class="r"><code>sessionInfo()</code></pre>
 <pre><code>## R version 3.3.2 (2016-10-31)
@@ -150,15 +153,17 @@ suppressPackageStartupMessages(library(ggplot2))</code></pre>
 ## [1] stats     graphics  grDevices utils     datasets  methods   base     
 ## 
 ## other attached packages:
-## [1] ggplot2_2.2.1 dplyr_0.5.0  
+## [1] ggplot2_2.2.1      stringdist_0.9.4.4 lubridate_1.6.0   
+## [4] dplyr_0.5.0       
 ## 
 ## loaded via a namespace (and not attached):
-##  [1] Rcpp_0.12.9      digest_0.6.11    rprojroot_1.2    assertthat_0.1  
-##  [5] plyr_1.8.4       grid_3.3.2       R6_2.2.0         gtable_0.2.0    
-##  [9] DBI_0.5-1        backports_1.0.5  magrittr_1.5     scales_0.4.1    
-## [13] evaluate_0.10    stringi_1.1.2    lazyeval_0.2.0   rmarkdown_1.4   
-## [17] tools_3.3.2      stringr_1.1.0    munsell_0.4.3    yaml_2.1.14     
-## [21] colorspace_1.3-2 htmltools_0.3.5  knitr_1.15.1     tibble_1.2</code></pre>
+##  [1] Rcpp_0.12.9      knitr_1.15.1     magrittr_1.5     munsell_0.4.3   
+##  [5] colorspace_1.3-2 R6_2.2.0         stringr_1.1.0    plyr_1.8.4      
+##  [9] tools_3.3.2      parallel_3.3.2   grid_3.3.2       gtable_0.2.0    
+## [13] DBI_0.5-1        htmltools_0.3.5  yaml_2.1.14      lazyeval_0.2.0  
+## [17] assertthat_0.1   rprojroot_1.2    digest_0.6.11    tibble_1.2      
+## [21] evaluate_0.10    rmarkdown_1.4    stringi_1.1.2    scales_0.4.1    
+## [25] backports_1.0.5</code></pre>
 </div>
 <div id="data-processing" class="section level1">
 <h1>Data Processing</h1>
@@ -220,7 +225,7 @@ download.file(fileUrl, destfile = dataFile)</code></pre>
 ## $ LONGITUDE_ &lt;dbl&gt; 8806, 0, 0, 0, 0, 0, 0, 0, 8738, 8737, 8644, 8640, ...
 ## $ REMARKS    &lt;fctr&gt; , , , , , , , , , , , , , , , , , , , , , , , , 
 ## $ REFNUM     &lt;dbl&gt; 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, ...</code></pre>
-<pre class="r"><code>head(stormDataRaw)</code></pre>
+<pre class="r"><code>head(stormDataRaw[,1:10])</code></pre>
 <pre><code>##   STATE__           BGN_DATE BGN_TIME TIME_ZONE COUNTY COUNTYNAME STATE
 ## 1       1  4/18/1950 0:00:00     0130       CST     97     MOBILE    AL
 ## 2       1  4/18/1950 0:00:00     0145       CST      3    BALDWIN    AL
@@ -228,34 +233,81 @@ download.file(fileUrl, destfile = dataFile)</code></pre>
 ## 4       1   6/8/1951 0:00:00     0900       CST     89    MADISON    AL
 ## 5       1 11/15/1951 0:00:00     1500       CST     43    CULLMAN    AL
 ## 6       1 11/15/1951 0:00:00     2000       CST     77 LAUDERDALE    AL
-##    EVTYPE BGN_RANGE BGN_AZI BGN_LOCATI END_DATE END_TIME COUNTY_END
-## 1 TORNADO         0                                               0
-## 2 TORNADO         0                                               0
-## 3 TORNADO         0                                               0
-## 4 TORNADO         0                                               0
-## 5 TORNADO         0                                               0
-## 6 TORNADO         0                                               0
-##   COUNTYENDN END_RANGE END_AZI END_LOCATI LENGTH WIDTH F MAG FATALITIES
-## 1         NA         0                      14.0   100 3   0          0
-## 2         NA         0                       2.0   150 2   0          0
-## 3         NA         0                       0.1   123 2   0          0
-## 4         NA         0                       0.0   100 2   0          0
-## 5         NA         0                       0.0   150 2   0          0
-## 6         NA         0                       1.5   177 2   0          0
-##   INJURIES PROPDMG PROPDMGEXP CROPDMG CROPDMGEXP WFO STATEOFFIC ZONENAMES
-## 1       15    25.0          K       0                                    
-## 2        0     2.5          K       0                                    
-## 3        2    25.0          K       0                                    
-## 4        2     2.5          K       0                                    
-## 5        2     2.5          K       0                                    
-## 6        6     2.5          K       0                                    
-##   LATITUDE LONGITUDE LATITUDE_E LONGITUDE_ REMARKS REFNUM
-## 1     3040      8812       3051       8806              1
-## 2     3042      8755          0          0              2
-## 3     3340      8742          0          0              3
-## 4     3458      8626          0          0              4
-## 5     3412      8642          0          0              5
-## 6     3450      8748          0          0              6</code></pre>
+##    EVTYPE BGN_RANGE BGN_AZI
+## 1 TORNADO         0        
+## 2 TORNADO         0        
+## 3 TORNADO         0        
+## 4 TORNADO         0        
+## 5 TORNADO         0        
+## 6 TORNADO         0</code></pre>
+</div>
+<div id="subset-dataset-to-what-is-needed-for-analysis" class="section level2">
+<h2>Subset Dataset to what is needed for analysis</h2>
+<p>Since the dataset is large, we’ll want to subset the data for processing to only that which we need. First, there are only a few of the variables we need for analysis, so we’ll create a copy of the dataset with just the needed variables.</p>
+<pre class="r"><code>workingData &lt;- stormDataRaw %&gt;% select(EVTYPE, BGN_DATE, FATALITIES, INJURIES, PROPDMGEXP, CROPDMGEXP)
+glimpse(workingData)</code></pre>
+<pre><code>## Observations: 902,297
+## Variables: 6
+## $ EVTYPE     &lt;fctr&gt; TORNADO, TORNADO, TORNADO, TORNADO, TORNADO, TORNA...
+## $ BGN_DATE   &lt;fctr&gt; 4/18/1950 0:00:00, 4/18/1950 0:00:00, 2/20/1951 0:...
+## $ FATALITIES &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4, 0, ...
+## $ INJURIES   &lt;dbl&gt; 15, 0, 2, 2, 2, 6, 1, 0, 14, 0, 3, 3, 26, 12, 6, 50...
+## $ PROPDMGEXP &lt;fctr&gt; K, K, K, K, K, K, K, K, K, K, M, M, K, K, K, K, K,...
+## $ CROPDMGEXP &lt;fctr&gt; , , , , , , , , , , , , , , , , , , , , , , , ,</code></pre>
+<p>We know we want to measure the financial and health impacts, so we can subset the dataset to only those records which have impact on the financial or health variables.</p>
+<pre class="r"><code>workingData &lt;- workingData[(workingData$PROPDMGEXP != 0 &amp; workingData$CROPDMGEXP != 0) | (workingData$FATALITIES != 0 &amp; workingData$INJURIES != 0),]
+dim(workingData)</code></pre>
+<pre><code>## [1] 902064      6</code></pre>
+<p>Since we want to analyze impact by type of event, we should exclude data prior to 1996 since not all event types were tracked before that.</p>
+<pre class="r"><code># First convert the beginning date to POSIXct datetype to more easily filter with
+workingData$BGN_DATE &lt;- as.POSIXct(workingData$BGN_DATE, format=&quot;%m/%d/%Y %H:%M:%S&quot;)
+# Then subset the data to just those after 1/1/1996
+workingData &lt;- workingData %&gt;% filter(BGN_DATE &gt;= &quot;1996-01-01&quot;)
+dim(workingData)</code></pre>
+<pre><code>## [1] 653529      6</code></pre>
+<pre class="r"><code>summary(workingData$BGN_DATE)</code></pre>
+<pre><code>##                  Min.               1st Qu.                Median 
+## &quot;1996-01-01 00:00:00&quot; &quot;2000-11-21 00:00:00&quot; &quot;2005-05-14 00:00:00&quot; 
+##                  Mean               3rd Qu.                  Max. 
+## &quot;2004-10-25 14:41:52&quot; &quot;2008-08-22 00:00:00&quot; &quot;2011-11-30 00:00:00&quot;</code></pre>
+</div>
+<div id="tidying-the-data-for-processing" class="section level2">
+<h2>Tidying the Data for processing</h2>
+<p>Since we’ll be relying heavily on the Event Type values (EVTYPE), we need to make sure we understand their values and that they are standard. There are 48 official event types, but looking at the unique number of values in the dataset we see there are 516.</p>
+<p>First, let’s reset the factor levels since we’ve subsetted the dataset</p>
+<pre class="r"><code>workingData$EVTYPE &lt;- factor(workingData$EVTYPE)
+str(workingData$EVTYPE)</code></pre>
+<pre><code>##  Factor w/ 516 levels &quot;   HIGH SURF ADVISORY&quot;,..: 507 426 434 434 434 142 177 434 434 434 ...</code></pre>
+<p>This is most likely due to mis-spellings of the official event types when the data was entered. We can get a sense of that by getting the number unique event types after converting them all to upper case and removing leading and trailing spaces, which gives us 430.</p>
+<pre class="r"><code>workingData$EVTYPE &lt;- factor(toupper(trimws(workingData$EVTYPE)))
+str(workingData$EVTYPE)</code></pre>
+<pre><code>##  Factor w/ 430 levels &quot;ABNORMAL WARMTH&quot;,..: 424 350 357 357 357 105 134 357 357 357 ...</code></pre>
+<p>Another way to to isolate the event types is by getting rid of those which are statistically insignificant. If we look at event types where there are at least 20 entries, we see there are only 94.</p>
+<pre class="r"><code>tabledEventTypes &lt;- table(workingData$EVTYPE)
+evtypKeepers &lt;- names(tabledEventTypes[tabledEventTypes &gt;= 20])
+length(evtypKeepers)</code></pre>
+<pre><code>## [1] 94</code></pre>
+<p>Now we can subset the working dataset to only those records with one of the more common event types.</p>
+<pre class="r"><code>workingData &lt;- workingData[workingData$EVTYPE %in% evtypKeepers,]
+workingData$EVTYPE &lt;- factor(workingData$EVTYPE)
+str(workingData$EVTYPE)</code></pre>
+<pre><code>##  Factor w/ 94 levels &quot;ASTRONOMICAL HIGH TIDE&quot;,..: 91 76 79 79 79 31 38 79 79 79 ...</code></pre>
+<p>So, we need to normalize the various event types to the standard types so we can get accurate analysis. We first need to get the official event type names, which we’ll do just by hard-coding them into a vector. (The list was pulled from the <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf">Storm Data Documentation</a> sheet)</p>
+<pre class="r"><code>officialEventTypes &lt;- c('Astronomical Low Tide','Avalanche','Blizzard','Coastal Flood',
+                        'Cold/Wind Chill','Debris Flow','Dense Fog','Dense Smoke','Drought',
+                        'Dust Devil','Dust Storm','Excessive Heat','Extreme Cold/Wind Chill',
+                        'Flash Flood','Flood','Frost/Freeze','Funnel Cloud',
+                        'Freezing Fog','Hail','Heat','Heavy Rain','Heavy Snow','High Surf',
+                        'High Wind','Hurricane (Typhoon)','Ice Storm','Lake-Effect Snow',
+                        'Lakeshore Flood','Lightning','Marine Hail','Marine High Wind',
+                        'Marine Strong Wind','Marine Thunderstorm Wind','Rip Current',
+                        'Seiche','Sleet','Storm Surge/Tide','Strong Wind','Thunderstorm Wind',
+                        'Tornado','Tropical Depression','Tropical Storm','Tsunami',
+                        'Volcanic Ash','Waterspout','Wildfire','Winter Storm','Winter Weather'
+                        )
+officialEventTypes &lt;- toupper(officialEventTypes)
+length(officialEventTypes)</code></pre>
+<pre><code>## [1] 48</code></pre>
 </div>
 </div>
 

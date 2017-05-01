@@ -11,10 +11,11 @@ output:
 The goal of this analysis is to explore the NOAA Storm Database to answer questions relating to severe weather events.  We are interested in answering the questions: 1) Across the United States, which types of events are most harmful with respect to population health? and 2) Across the United States, which types of events have the greatest economic consequences?
 
 # Setup
-This analysis requires the dplyr, lubridate and ggplot2 libraries:
+This analysis requires the dplyr, lubridate, stringdist and ggplot2 libraries:
 ```{r setup}
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(stringdist))
 suppressPackageStartupMessages(library(ggplot2))
 ```
 
@@ -64,8 +65,14 @@ workingData <- stormDataRaw %>% select(EVTYPE, BGN_DATE, FATALITIES, INJURIES, P
 glimpse(workingData)
 ```
 
-Since we want to analyze impact by type of event, we should exclude data prior to 1996 since not all event types were tracked before that.
+We know we want to measure the financial and health impacts, so we can subset the dataset to only those records which have impact on the financial or health variables.
 ```{r subset2}
+workingData <- workingData[(workingData$PROPDMGEXP != 0 & workingData$CROPDMGEXP != 0) | (workingData$FATALITIES != 0 & workingData$INJURIES != 0),]
+dim(workingData)
+```
+
+Since we want to analyze impact by type of event, we should exclude data prior to 1996 since not all event types were tracked before that.
+```{r subset3}
 # First convert the beginning date to POSIXct datetype to more easily filter with
 workingData$BGN_DATE <- as.POSIXct(workingData$BGN_DATE, format="%m/%d/%Y %H:%M:%S")
 # Then subset the data to just those after 1/1/1996
@@ -74,17 +81,34 @@ dim(workingData)
 summary(workingData$BGN_DATE)
 ```
 
-
 ## Tidying the Data for processing
 
 Since we'll be relying heavily on the Event Type values (EVTYPE), we need to make sure we understand their values and that they are standard.  There are 48 official event types, but looking at the unique number of values in the dataset we see there are 516.
-```{r evtype}
-length(unique(stormDataRaw$EVTYPE))
+
+First, let's reset the factor levels since we've subsetted the dataset
+```{r evtype1}
+workingData$EVTYPE <- factor(workingData$EVTYPE)
+str(workingData$EVTYPE)
 ```
 
 This is most likely due to mis-spellings of the official event types when the data was entered.  We can get a sense of that by getting the number unique event types after converting them all to upper case and removing leading and trailing spaces, which gives us 430.
 ```{r evtyp2}
-length(unique(toupper(trim(workingData$EVTYPE))))
+workingData$EVTYPE <- factor(toupper(trimws(workingData$EVTYPE)))
+str(workingData$EVTYPE)
+```
+
+Another way to to isolate the event types is by getting rid of those which are statistically insignificant.  If we look at event types where there are at least 20 entries, we see there are only 94.
+```{r evtyp3}
+tabledEventTypes <- table(workingData$EVTYPE)
+evtypKeepers <- names(tabledEventTypes[tabledEventTypes >= 20])
+length(evtypKeepers)
+```
+
+Now we can subset the working dataset to only those records with one of the more common event types.
+```{r evtyp4}
+workingData <- workingData[workingData$EVTYPE %in% evtypKeepers,]
+workingData$EVTYPE <- factor(workingData$EVTYPE)
+str(workingData$EVTYPE)
 ```
 
 So, we need to normalize the various event types to the standard types so we can get accurate analysis.  We first need to get the official event type names, which we'll do just by hard-coding them into a vector. (The list was pulled from the <a href="https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf">Storm Data Documentation</a> sheet)
@@ -101,6 +125,7 @@ officialEventTypes <- c('Astronomical Low Tide','Avalanche','Blizzard','Coastal 
                         'Tornado','Tropical Depression','Tropical Storm','Tsunami',
                         'Volcanic Ash','Waterspout','Wildfire','Winter Storm','Winter Weather'
                         )
+officialEventTypes <- toupper(officialEventTypes)
 length(officialEventTypes)
 ```
 
