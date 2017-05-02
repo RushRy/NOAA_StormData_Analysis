@@ -11,13 +11,6 @@ This analysis requires the dplyr, stringdist and ggplot2 libraries:
 ```r
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(stringdist))
-```
-
-```
-## Warning: package 'stringdist' was built under R version 3.3.3
-```
-
-```r
 suppressPackageStartupMessages(library(ggplot2))
 ```
 
@@ -28,9 +21,11 @@ sessionInfo()
 ```
 
 ```
-## R version 3.3.2 (2016-10-31)
+## R version 3.4.0 (2017-04-21)
 ## Platform: x86_64-w64-mingw32/x64 (64-bit)
-## Running under: Windows 7 x64 (build 7601) Service Pack 1
+## Running under: Windows 10 x64 (build 14393)
+## 
+## Matrix products: default
 ## 
 ## locale:
 ## [1] LC_COLLATE=English_United States.1252 
@@ -46,13 +41,13 @@ sessionInfo()
 ## [1] ggplot2_2.2.1      stringdist_0.9.4.4 dplyr_0.5.0       
 ## 
 ## loaded via a namespace (and not attached):
-##  [1] Rcpp_0.12.9      digest_0.6.10    rprojroot_1.2    assertthat_0.1  
-##  [5] plyr_1.8.4       grid_3.3.2       R6_2.2.0         gtable_0.2.0    
-##  [9] DBI_0.5-1        backports_1.0.5  magrittr_1.5     scales_0.4.1    
-## [13] evaluate_0.10    stringi_1.1.2    lazyeval_0.2.0   rmarkdown_1.3   
-## [17] tools_3.3.2      stringr_1.2.0    munsell_0.4.3    parallel_3.3.2  
-## [21] yaml_2.1.14      colorspace_1.3-1 htmltools_0.3.5  knitr_1.15.1    
-## [25] tibble_1.2
+##  [1] Rcpp_0.12.10     knitr_1.15.1     magrittr_1.5     munsell_0.4.3   
+##  [5] colorspace_1.3-2 R6_2.2.0         stringr_1.2.0    plyr_1.8.4      
+##  [9] tools_3.4.0      parallel_3.4.0   grid_3.4.0       gtable_0.2.0    
+## [13] DBI_0.6-1        htmltools_0.3.6  yaml_2.1.14      lazyeval_0.2.0  
+## [17] assertthat_0.2.0 rprojroot_1.2    digest_0.6.12    tibble_1.3.0    
+## [21] evaluate_0.10    rmarkdown_1.5    stringi_1.1.5    compiler_3.4.0  
+## [25] scales_0.4.1     backports_1.0.5
 ```
 
 # Data Processing
